@@ -22,7 +22,9 @@ from keras.layers import (
 from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
 import random
 import time
-import cv2 
+import cv2
+
+from realtime_detector import RealtimeEmotionDetector
 
 # Define constants
 TRAIN_DIR = "H:/alfa-training/Deep Learning/_Abschlussprojekt/archive/train"
@@ -143,6 +145,7 @@ def plot_confusion_matrix(y_true, y_pred):
     disp.plot()
     plt.show()
 
+'''
 # Lights! Camera! ...
 def action(model):
     ## source:"https://realpython.com/face-detection-in-python-using-a-webcam/"
@@ -224,6 +227,7 @@ def action(model):
     # When everything is done, release the capture
     video_capture.release()
     cv2.destroyAllWindows()
+'''
 
 # Model training, evaluation and test on video
 def main():
@@ -373,7 +377,16 @@ def main():
                 plt.axis("off")
             plt.show()
 
-        action(loaded_model)
+        cascPath = r"H:\alfa-training\Deep Learning\haarcascade_frontalface_default.xml"
+
+        detector = RealtimeEmotionDetector(
+            model=loaded_model,
+            class_labels=CLASS_LABELS,
+            img_size=(IMG_HEIGHT, IMG_WIDTH),
+            cascade_path=cascPath
+        )
+
+        detector.run(camera_index=0)
 
     except Exception as e:
         print("Fehler beim Laden des Modells:", e)
