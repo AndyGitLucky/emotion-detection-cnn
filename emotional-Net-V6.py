@@ -26,9 +26,17 @@ import cv2
 
 from realtime_detector import RealtimeEmotionDetector
 
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+DATA_DIR = PROJECT_ROOT / "data"
+TRAIN_DIR = DATA_DIR / "train"
+TEST_DIR  = DATA_DIR / "test"
+
+CASCADE_PATH = PROJECT_ROOT / "assets" / "haarcascade_frontalface_default.xml"
+
 # Define constants
-TRAIN_DIR = "H:/alfa-training/Deep Learning/_Abschlussprojekt/archive/train"
-TEST_DIR = "H:/alfa-training/Deep Learning/_Abschlussprojekt/archive/test"
 IMG_HEIGHT = 48
 IMG_WIDTH = 48
 BATCH_SIZE = 64
@@ -151,8 +159,7 @@ def action(model):
     ## source:"https://realpython.com/face-detection-in-python-using-a-webcam/"
     #The 'r' before the string because of the backslashes,
     #otherwise it would be interpreted as an escape character.
-    cascPath = r"H:\alfa-training\Deep Learning\haarcascade_frontalface_default.xml"
-    faceCascade = cv2.CascadeClassifier(cascPath)
+    faceCascade = cv2.CascadeClassifier(CASCADE_PATH)
 
     video_capture = cv2.VideoCapture(0) # 1 works, 0 (default) does not
 
@@ -376,14 +383,12 @@ def main():
                 )
                 plt.axis("off")
             plt.show()
-
-        cascPath = r"H:\alfa-training\Deep Learning\haarcascade_frontalface_default.xml"
-
+        
         detector = RealtimeEmotionDetector(
             model=loaded_model,
             class_labels=CLASS_LABELS,
             img_size=(IMG_HEIGHT, IMG_WIDTH),
-            cascade_path=cascPath
+            cascade_path=str(CASCADE_PATH)
         )
 
         detector.run(camera_index=0)
