@@ -24,8 +24,8 @@ import random
 import time
 import cv2
 
-from realtime_detector import RealtimeEmotionDetector
-
+from src.realtime_detector import RealtimeEmotionDetector
+from src.evaluator import evaluate_model
 from src.trainer import train_model
 from src.config import *
 from src.model import build_model
@@ -218,22 +218,18 @@ def main():
         
         # Build and compile the model
         model = build_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 1))  # grayscale images have 1 channel
-        
+        history = train_model(
+            model,
+            train_data,
+            val_data,
+            class_weights
+        )
+
         # Save the trained model
         model.save(model_file)
         
         # Evaluate the model on test data
-        test_loss, test_accuracy = model.evaluate(test_data)
-        print("Test Loss:", test_loss)
-        print("Test Accuracy:", test_accuracy)
-        
-        # Plot training and validation accuracy
-        plt.plot(history.history['accuracy'], label='Training Accuracy')
-        plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-        plt.xlabel('Epoch')
-        plt.ylabel('Accuracy')
-        plt.legend()
-        plt.show()
+        test_loss, test_accuracy = evaluate_model(model, test_data)
 
     # Predict labels for test data
     try:
