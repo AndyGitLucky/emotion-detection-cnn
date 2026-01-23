@@ -1,6 +1,10 @@
 """
-Created: 29.02.2024
+***DEPRECATED SCRIPT***
 
+This file is kept for reference only.
+Use src/main.py instead.
+
+Created: 29.02.2024
 @author: Andreas Eichmann
 """
 
@@ -193,21 +197,6 @@ def main():
     train_data, val_data, test_data = load_datasets()
 
     show_random_images(TRAIN_DIR, CLASS_LABELS)
-
-    # Calculate class weights
-    class_counts = np.zeros(NUM_CLASSES)
-    for _, labels in train_data:
-        class_counts += np.sum(labels, axis=0)
-    total_samples = np.sum(class_counts)
-    class_weights = total_samples / (NUM_CLASSES * class_counts)
-    class_weights = dict(enumerate(class_weights))
-
-    # Plot class weights
-    plt.bar(range(NUM_CLASSES), class_weights.values(), tick_label=CLASS_LABELS)
-    plt.xlabel('Emotion')
-    plt.ylabel('Class Weight')
-    plt.title('Class Weights')
-    plt.show()
 
     # Show samples from augmentation layer (not the actual layer)
     show_augmentation(train_data)
