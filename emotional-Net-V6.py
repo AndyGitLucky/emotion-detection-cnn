@@ -26,6 +26,7 @@ import cv2
 
 from realtime_detector import RealtimeEmotionDetector
 
+from src.trainer import train_model
 from src.config import *
 from src.model import build_model
 from src.data import load_datasets
@@ -191,46 +192,6 @@ def main():
     # visualize_emotion_distribution(TEST_DIR)
     train_data, val_data, test_data = load_datasets()
 
-    # Load Training and Validation Images
-    """ 
-    we have less train data and more test data (0.25), so we split the test data files into test and validate 
-    to validate the training with the 'training' split and Test the model at the very end with this  
-    small - never seen before - 'validation' split 
-    """
-"""     train_data = tf.keras.utils.image_dataset_from_directory(
-        directory=TRAIN_DIR,
-        labels='inferred',
-        label_mode='categorical', 
-        color_mode='grayscale',
-        batch_size=BATCH_SIZE,
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        seed=42
-    )
-    # for training eval
-    val_data = tf.keras.utils.image_dataset_from_directory(
-    directory=TEST_DIR,
-    labels='inferred',
-    label_mode='categorical',
-    color_mode='grayscale',
-    batch_size=BATCH_SIZE,
-    image_size=(IMG_HEIGHT, IMG_WIDTH),
-    validation_split=0.2,  # 20% of the data will be used for validation
-    subset='training',     # Specifies that this dataset is for training (-validation)
-    seed=42
-    )
-    # for final testing
-    test_data = tf.keras.utils.image_dataset_from_directory(
-        directory=TEST_DIR,
-        labels='inferred',
-        label_mode='categorical',
-        color_mode='grayscale',
-        batch_size=BATCH_SIZE,
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        validation_split=0.2,  # 20% of the data will be used for validation
-        subset='validation',   # Specifies that this dataset is for validation (I call it Test data for the final test)
-        seed=42
-    )
- """
     show_random_images(TRAIN_DIR, CLASS_LABELS)
 
     # Calculate class weights
@@ -257,21 +218,6 @@ def main():
         
         # Build and compile the model
         model = build_model(input_shape=(IMG_HEIGHT, IMG_WIDTH, 1))  # grayscale images have 1 channel
-        es = EarlyStopping(monitor='val_accuracy', mode='auto', verbose=1, patience=EARLY_STOP_PATIENCE)
-        
-        # Train the model
-        tik = time.time()
-        history = model.fit(
-            train_data,
-            epochs=EPOCHS,
-            validation_data=val_data,
-            class_weight=class_weights,
-            callbacks=es
-        )
-        # Training timer
-        tok = time.time()
-        training_time = tok - tik
-        print("Training time: {:.2f} seconds".format(training_time))
         
         # Save the trained model
         model.save(model_file)
