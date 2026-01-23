@@ -26,27 +26,10 @@ import cv2
 
 from realtime_detector import RealtimeEmotionDetector
 
-from pathlib import Path
+from src.config import *
+from src.model import build_model
+from src.data import load_datasets
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-
-DATA_DIR = PROJECT_ROOT / "data"
-TRAIN_DIR = DATA_DIR / "train"
-TEST_DIR  = DATA_DIR / "test"
-
-CASCADE_PATH = PROJECT_ROOT / "assets" / "haarcascade_frontalface_default.xml"
-
-# Define constants
-IMG_HEIGHT = 48
-IMG_WIDTH = 48
-BATCH_SIZE = 64
-NUM_CLASSES = 7
-LEARNING_RATE = 0.001
-EARLY_STOP_PATIENCE = 20
-EPOCHS = 50
-
-# Define class labels
-CLASS_LABELS = ['angry', 'disgusted', 'fearful', 'happy', 'neutral', 'sad', 'surprised']
 
 # Function to plot a random picture from each class
 def show_random_images(directory, classes) -> None:
@@ -71,42 +54,6 @@ def visualize_emotion_distribution(directory):
     plt.xlabel('Emotion')
     plt.ylabel('Frequency')
     plt.show()
-
-# Function to create and compile the model
-def build_model(input_shape):
-    # https://www.tensorflow.org/api_docs/python/tf/keras/layers
-    # batch normalization, dann die aktivierungsfunktion ausprobieren!
-    model = Sequential([
-        RandomZoom(height_factor=(-0.2, -0.05), width_factor=(-0.2, -0.05), 
-                   input_shape=input_shape), 
-        RandomTranslation(0.2, 0.2, fill_mode= 'nearest'),
-        RandomBrightness(factor=0.2, value_range=[0,255]),
-        RandomContrast(0.3),
-        RandomFlip(mode="horizontal"),
-        Rescaling(scale=1./255),
-        Conv2D(16, (3, 3), padding='valid', activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(padding='same'),
-        Conv2D(32, (3, 3), activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(padding='same'),
-        Conv2D(64, (3, 3), activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(padding='same'),
-        Conv2D(128, (3, 3), activation='relu'),
-        BatchNormalization(),
-        MaxPooling2D(padding='same'),
-        Flatten(),
-        Dense(64, activation='relu'),
-        Dropout(0.5),
-        Dense(NUM_CLASSES, activation='softmax')
-    ])
-    model.summary()
-    optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
-    model.compile(optimizer=optimizer, loss='categorical_crossentropy', 
-                  weighted_metrics=['accuracy'])
-    
-    return model
 
 # Function to show augmentation at work
 def show_augmentation(train_data):
@@ -242,6 +189,7 @@ def main():
     # Visualize emotion distribution in training and testing data
     visualize_emotion_distribution(TRAIN_DIR)
     # visualize_emotion_distribution(TEST_DIR)
+    train_data, val_data, test_data = load_datasets()
 
     # Load Training and Validation Images
     """ 
@@ -249,7 +197,7 @@ def main():
     to validate the training with the 'training' split and Test the model at the very end with this  
     small - never seen before - 'validation' split 
     """
-    train_data = tf.keras.utils.image_dataset_from_directory(
+"""     train_data = tf.keras.utils.image_dataset_from_directory(
         directory=TRAIN_DIR,
         labels='inferred',
         label_mode='categorical', 
@@ -282,7 +230,7 @@ def main():
         subset='validation',   # Specifies that this dataset is for validation (I call it Test data for the final test)
         seed=42
     )
-
+ """
     show_random_images(TRAIN_DIR, CLASS_LABELS)
 
     # Calculate class weights
