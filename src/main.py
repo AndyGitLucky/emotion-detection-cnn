@@ -13,6 +13,7 @@ from src.config import (
     CLASS_LABELS,
     NUM_CLASSES,
     MODEL_PATH
+    CASCADE_PATH
 )
 
 from src.data import load_datasets
@@ -63,6 +64,11 @@ def main():
         model = tf.keras.models.load_model(model_file)
 
     evaluate_model(model, test_data)
+
+   
+
+    print("Cascade path:", CASCADE_PATH)
+    print("Exists:", CASCADE_PATH.exists())
 
 
 if __name__ == "__main__":

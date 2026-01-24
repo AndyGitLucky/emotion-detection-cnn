@@ -3,12 +3,6 @@ from keras.callbacks import EarlyStopping
 from src.config import EPOCHS, EARLY_STOP_PATIENCE
 
 
-""" 
-we have less train data and more test data (0.25), so we split the test data files into test and validate 
-to validate the training with the 'training' split and Test the model at the very end with this  
-small - never seen before - 'validation' split 
-"""
-
 def train_model(model, train_data, val_data, class_weights):
     es = EarlyStopping(
         monitor='val_accuracy',

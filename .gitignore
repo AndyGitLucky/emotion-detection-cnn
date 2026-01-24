@@ -7,3 +7,4 @@ checkpoints/
 # python cache
 __pycache__/
 *.pyc
+repo_clean.zip

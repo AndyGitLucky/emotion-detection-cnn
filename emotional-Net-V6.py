@@ -276,8 +276,7 @@ def main():
         print("Fehler beim Laden des Modells:", e)
 
 if __name__ == "__main__":
-    main()
-
+    print("This script is deprecated. Use src/main.py instead."
 
 """ model = Sequential([
     RandomContrast(0.5, input_shape=(IMG_HEIGHT, IMG_WIDTH, 1)), 
