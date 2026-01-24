@@ -1,12 +1,20 @@
 import os
+from silence_tensorflow import silence_tensorflow
+silence_tensorflow() # so tensorflow is finally silent
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import numpy as np
+
+from tensorflow.keras import mixed_precision
+mixed_precision.set_global_policy("mixed_float16")
 
 from src.config import (
     IMG_HEIGHT, IMG_WIDTH,
     CLASS_LABELS,
+    NUM_CLASSES,
     MODEL_PATH
 )
+
 from src.data import load_datasets
 from src.model import build_model
 from src.trainer import train_model

@@ -11,7 +11,7 @@ class RealtimeEmotionDetector:
     def preprocess_face(self, face_img):
         gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
         resized = cv2.resize(gray, self.img_size)
-        # resized = resized.astype("float32") / 255.0
+        resized = resized.astype("float32") / 255.0
 
         if resized.ndim == 2:
             resized = resized[..., np.newaxis]

@@ -1,2 +1,9 @@
+# datasets
+archive/
+
+# trained models / checkpoints
+checkpoints/
+
+# python cache
 __pycache__/
 *.pyc
