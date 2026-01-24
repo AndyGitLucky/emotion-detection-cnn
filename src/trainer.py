@@ -6,9 +6,10 @@ from src.config import EPOCHS, EARLY_STOP_PATIENCE
 def train_model(model, train_data, val_data, class_weights):
     es = EarlyStopping(
         monitor='val_accuracy',
-        mode='auto',
+        mode='max',
         verbose=1,
-        patience=EARLY_STOP_PATIENCE
+        patience=EARLY_STOP_PATIENCE,
+        restore_best_weights=True
     )
 
     tik = time.time()
@@ -17,7 +18,7 @@ def train_model(model, train_data, val_data, class_weights):
         epochs=EPOCHS,
         validation_data=val_data,
         class_weight=class_weights,
-        callbacks=es
+        callbacks=[es]
     )
     tok = time.time()
 

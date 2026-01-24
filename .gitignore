@@ -8,3 +8,5 @@ checkpoints/
 __pycache__/
 *.pyc
 repo_clean.zip
+debug_*.png
+training_curves.png

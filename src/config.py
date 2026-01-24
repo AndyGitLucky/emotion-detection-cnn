@@ -12,6 +12,11 @@ TEST_DIR  = DATASET_ROOT / "test"
 CASCADE_PATH = PROJECT_ROOT / "assets" / "haarcascade_frontalface_default.xml"
 MODEL_PATH = PROJECT_ROOT / "checkpoints" / "emotion_model"
 
+FORCE_RETRAIN = True
+
+FREEZE_BEST_MODEL = True
+PROMOTION_METRIC = "weighted_f1"   # oder: "accuracy"
+
 # Define constants
 IMG_HEIGHT = 48
 IMG_WIDTH = 48

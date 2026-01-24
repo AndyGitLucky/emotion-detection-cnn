@@ -1,5 +1,6 @@
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, classification_report
+import numpy as np
+from sklearn.metrics import confusion_matrix, classification_report, f1_score
+from src.config import CLASS_LABELS
 
 
 def evaluate_model(model, test_data):
@@ -18,7 +19,22 @@ def evaluate_model(model, test_data):
     cm = confusion_matrix(y_true, y_pred)
     print("Confusion Matrix:\n", cm)
 
-    print("Classification Report:\n",
-          classification_report(y_true, y_pred))
+    print(
+        "Classification Report:\n",
+        classification_report(y_true, y_pred, target_names=CLASS_LABELS)
+    )
 
-    return test_loss, test_accuracy
+    macro_f1 = f1_score(y_true, y_pred, average="macro")
+    weighted_f1 = f1_score(y_true, y_pred, average="weighted")
+
+    print("Macro F1:", macro_f1)
+    print("Weighted F1:", weighted_f1)
+
+    metrics = {
+        "loss": float(test_loss),
+        "accuracy": float(test_accuracy),
+        "macro_f1": float(macro_f1),
+        "weighted_f1": float(weighted_f1),
+    }
+
+    return metrics
