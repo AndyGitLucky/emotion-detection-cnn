@@ -10,3 +10,5 @@ __pycache__/
 repo_clean.zip
 debug_*.png
 training_curves.png
+shared/config.py
+checkpoints/
