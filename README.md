@@ -1,3 +1,8 @@
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![TensorFlow](https://img.shields.io/badge/tensorflow-2.13.1-orange)
+![CUDA](https://img.shields.io/badge/cuda-11.8-green)
+![Platform](https://img.shields.io/badge/platform-WSL2%20%2F%20Windows-lightgrey)
+
 # Emotion Detection with Custom CNN
 Real-Time Facial Emotion Recognition – Training Pipeline + Windows Demo
 
@@ -99,7 +104,7 @@ The focus of this project is primarily engineering quality and architecture.
 ---
 
 ## Repository Structure
-
+```text
 emotion_detection_model_V6/
 ├── src/                 # Training pipeline (WSL)
 │   ├── main.py
@@ -122,7 +127,7 @@ emotion_detection_model_V6/
 │
 ├── checkpoints/         # Saved models (gitignored)
 └── README.md
-
+```
 ---
 
 ## How to Run
