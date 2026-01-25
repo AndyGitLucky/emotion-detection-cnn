@@ -140,17 +140,17 @@ Requirements:
 - TensorFlow GPU environment
 
 Commands:
-
+```bash
 source ~/tf-gpu/bin/activate  
 python -m src.main
-
+```
 This will:
 - configure the TensorFlow runtime
 - load and preprocess the dataset
 - build the CNN
 - train the model
 - evaluate on the validation set
-- save the trained model to checkpoints/
+- save the trained model to `checkpoints/`
 - export the training configuration
 
 ---
@@ -165,9 +165,9 @@ Requirements:
 - Webcam
 
 Command:
-
+```powershell
 py realtime/run_windows_demo.py
-
+```
 This will:
 - sync the trained model and config from WSL
 - load the model locally
