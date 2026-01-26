@@ -11,6 +11,15 @@ Date:   25.01.2026
 
 ---
 
+## 🎥 Live Demo
+
+A live demo video of the real-time emotion detection system is available in the
+`v1.0-demo` release.
+
+Watch the demo here:  
+https://github.com/AndyGitLucky/emotion-detection-cnn/releases/tag/v1.0-demo
+
+
 ## Overview
 
 This project implements a full end-to-end facial emotion recognition system using a custom Convolutional Neural Network (CNN).
@@ -27,7 +36,6 @@ The goal of this project is not only model accuracy, but to demonstrate clean ML
 - single source of truth for configuration
 - production-adjacent deployment patterns
 
----
 
 ## Features
 
@@ -55,7 +63,6 @@ The goal of this project is not only model accuracy, but to demonstrate clean ML
 
 - GPU-accelerated training using TensorFlow on WSL2
 
----
 
 ## Environment & Tech Stack
 
@@ -76,7 +83,6 @@ Inference environment (Windows):
 - OpenCV
 - Webcam
 
----
 
 ## Model & Dataset
 
@@ -101,7 +107,6 @@ Inference environment (Windows):
 This is a baseline model with clear room for improvement.  
 The focus of this project is primarily engineering quality and architecture.
 
----
 
 ## Repository Structure
 ```text
@@ -178,7 +183,6 @@ This will:
 
 Press q to quit.
 
----
 
 ## Architecture & Design Decisions
 
@@ -188,7 +192,6 @@ Press q to quit.
 - Inference logic lives exclusively in realtime/
 - No cross-OS Python imports
 
----
 
 ### 2) Single source of truth for configuration
 
@@ -198,7 +201,6 @@ Press q to quit.
 
 This guarantees that inference always uses exactly the same parameters as training.
 
----
 
 ### 3) File-based contract between WSL and Windows
 
@@ -208,7 +210,6 @@ Instead of attempting cross-OS imports:
 
 This mirrors how models are deployed in real systems.
 
----
 
 ### 4) Object-oriented design + Dependency Injection
 
@@ -221,7 +222,6 @@ External dependencies (model loader, preprocessing, sync logic) are injected, ma
 - extensible
 - replaceable (e.g. FER+ dataset, new model, different camera input)
 
----
 
 ## Future Work
 
@@ -230,7 +230,6 @@ External dependencies (model loader, preprocessing, sync logic) are injected, ma
 - Deeper CNN or transfer learning (e.g. MobileNetV2)
 - Temporal smoothing for real-time predictions
 
----
 
 ## Author
 
