@@ -2,9 +2,6 @@ from src.training_pipeline import TrainingPipeline
 import src.config as config
 
 def configure_runtime():
-    from silence_tensorflow import silence_tensorflow
-    silence_tensorflow()
-
     from src.runtime import configure_tensorflow_runtime
     configure_tensorflow_runtime()
 

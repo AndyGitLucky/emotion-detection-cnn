@@ -1,7 +1,7 @@
-from silence_tensorflow import silence_tensorflow
-silence_tensorflow()
-import tensorflow as tf
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
+import tensorflow as tf
 
 def configure_tensorflow_runtime():
     gpus = tf.config.list_physical_devices("GPU")

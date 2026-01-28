@@ -1,131 +1,134 @@
+import csv
+from pathlib import Path
 import tensorflow as tf
 import numpy as np
-from pathlib import Path
 from sklearn.utils.class_weight import compute_class_weight
 
-from .base import BaseDataset
+from src.datasets.base import BaseDataset
+from src.data_download import ensure_fer2013_available
 
 
 class FER2013Dataset(BaseDataset):
     """
-    FER2013 dataset loader.
-
-    Responsibilities:
-    - load images from disk
-    - preprocess (resize, normalize)
-    - encode labels
-    - create train/validation splits
-    - compute class weights
+    FER2013 dataset based on icml_face_data.csv.
+    Uses shared FER2013 images (same base as FER+).
     """
 
     def __init__(self, config):
         super().__init__(config)
 
-        self.image_size = config.dataset.image_size
-        self.batch_size = config.dataset.batch_size
-        self.num_classes = config.dataset.num_classes
-        self.seed = config.dataset.seed
+        # internal state (IDENTICAL to FER+)
+        self._train_items = []
+        self._val_items = []
 
-        self.train_dir = Path(config.dataset.train_dir)
-        self.test_dir = Path(config.dataset.test_dir)
-
-        self.class_names = config.CLASS_LABELS
-
-        # runtime state
         self._train_ds = None
         self._val_ds = None
         self._class_weights = None
 
-    # -------------------------
-    # Load
-    # -------------------------
+    # -------------------------------------------------
+    # Load: CSV parsing
+    # -------------------------------------------------
     def load(self):
-        if not self.train_dir.exists():
-            raise FileNotFoundError(f"Train dir not found: {self.train_dir}")
+        ensure_fer2013_available(self.config)
 
-        print(f"Loading FER2013 from {self.train_dir}")
+        root = self.config.dataset.root
+        csv_path = root / "fer2013_competition" / "icml_face_data.csv"
+        image_dir = root / "fer2013_competition" / "images"
 
-        raw_ds = tf.keras.utils.image_dataset_from_directory(
-            self.train_dir,
-            labels="inferred",
-            label_mode="categorical",
-            color_mode="grayscale",
-            image_size=self.image_size,
-            batch_size=self.batch_size,
-            shuffle=True,
-            seed=self.seed,
-        )
+        if not csv_path.exists():
+            raise FileNotFoundError(csv_path)
 
-        self._raw_ds = raw_ds
+        class_labels = self.config.CLASS_LABELS
 
-    # -------------------------
-    # Prepare
-    # -------------------------
+        with open(csv_path, newline="") as f:
+            reader = csv.DictReader(f)
+
+            # normalize headers
+            field_map = {k.strip().lower(): k for k in reader.fieldnames}
+
+            usage_key = field_map.get("usage")
+            emotion_key = field_map.get("emotion")
+
+            if usage_key is None or emotion_key is None:
+                raise RuntimeError(
+                    f"Unexpected FER2013 CSV header: {reader.fieldnames}"
+                )
+
+            for idx, row in enumerate(reader):
+                usage = row[usage_key].strip().lower()
+                emotion = int(row[emotion_key])
+
+                if emotion < 0 or emotion >= len(class_labels):
+                    continue
+
+                img_path = image_dir / f"fer{idx:07d}.png"
+                if not img_path.exists():
+                    continue
+
+                item = (str(img_path), emotion)
+
+                if usage == "training":
+                    self._train_items.append(item)
+                elif usage == "publictest":
+                    self._val_items.append(item)
+
+        if not self._train_items:
+            raise RuntimeError("FER2013 dataset: zero training samples")
+
+    # -------------------------------------------------
+    # Prepare: tf.data pipeline
+    # -------------------------------------------------
     def prepare(self):
-        def preprocess(images, labels):
-            images = tf.cast(images, tf.float32) / 255.0
-            return images, labels
+        image_size = self.config.dataset.image_size
+        batch_size = self.config.dataset.batch_size
+        num_classes = self.config.dataset.num_classes
+        seed = self.config.dataset.seed
 
-        self._raw_ds = self._raw_ds.map(
-            preprocess,
-            num_parallel_calls=tf.data.AUTOTUNE
-        )
+        def build_dataset(items, shuffle=False):
+            paths, labels = zip(*items)
 
-    # -------------------------
-    # Split
-    # -------------------------
-    def split(self):
-        train_ratio = self.config.dataset.train_split
-        val_ratio = self.config.dataset.val_split
+            labels = tf.keras.utils.to_categorical(
+                labels, num_classes=num_classes
+            )
 
-        if train_ratio + val_ratio >= 1.0:
-            raise ValueError("train_split + val_split must be < 1.0")
+            ds = tf.data.Dataset.from_tensor_slices((list(paths), labels))
 
-        ds_size = tf.data.experimental.cardinality(self._raw_ds).numpy()
+            def _load_image(path, label):
+                img = tf.io.read_file(path)
+                img = tf.image.decode_png(img, channels=1)
+                img = tf.image.resize(img, image_size)
+                img = tf.cast(img, tf.float32) / 255.0
+                return img, label
 
-        train_size = int(train_ratio * ds_size)
-        val_size = int(val_ratio * ds_size)
+            ds = ds.map(_load_image, num_parallel_calls=tf.data.AUTOTUNE)
 
-        self._train_ds = (
-            self._raw_ds
-            .take(train_size)
-            .cache()
-            .shuffle(1000, seed=self.seed)
-            .prefetch(tf.data.AUTOTUNE)
-        )
+            if shuffle:
+                ds = ds.shuffle(1000, seed=seed)
 
-        self._val_ds = (
-            self._raw_ds
-            .skip(train_size)
-            .take(val_size)
-            .cache()
-            .prefetch(tf.data.AUTOTUNE)
-        )
+            return ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
+        self._train_ds = build_dataset(self._train_items, shuffle=True)
+        self._val_ds = build_dataset(self._val_items)
 
         self._compute_class_weights()
 
-    # -------------------------
-    # Class weights
-    # -------------------------
+    # -------------------------------------------------
+    def split(self):
+        pass
+
+    # -------------------------------------------------
     def _compute_class_weights(self):
-        labels = []
-
-        for _, y in self._train_ds:
-            labels.extend(tf.argmax(y, axis=1).numpy())
-
-        labels = np.array(labels)
+        labels = [label for _, label in self._train_items]
 
         weights = compute_class_weight(
             class_weight="balanced",
-            classes=np.arange(self.num_classes),
-            y=labels,
+            classes=np.arange(self.config.dataset.num_classes),
+            y=np.array(labels),
         )
 
         self._class_weights = dict(enumerate(weights))
 
-    # -------------------------
-    # Accessors
-    # -------------------------
+    # -------------------------------------------------
     def get_train(self):
         return self._train_ds, None
 
