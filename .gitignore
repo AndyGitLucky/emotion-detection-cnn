@@ -4,11 +4,34 @@ archive/
 # trained models / checkpoints
 checkpoints/
 
-# python cache
-__pycache__/
-*.pyc
-repo_clean.zip
+
 debug_*.png
 training_curves.png
 shared/config.py
 checkpoints/
+scripts/
+# -----------------------
+# Python
+# -----------------------
+__pycache__/
+*.pyc
+*.pyo
+
+# -----------------------
+# OS / Editor Artefacts
+# -----------------------
+*:Zone.Identifier
+
+# -----------------------
+# Project artefacts
+# -----------------------
+emotion_detection_model_V6.zip
+demo_thumbnail.png
+live-demo.mp4
+
+# -----------------------
+# Notes / drafts
+# -----------------------
+briefing.md
+notes.txt
+rc.main
