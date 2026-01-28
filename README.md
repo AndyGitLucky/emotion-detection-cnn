@@ -1,243 +1,141 @@
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![TensorFlow](https://img.shields.io/badge/tensorflow-2.13.1-orange)
-![CUDA](https://img.shields.io/badge/cuda-11.8-green)
-![Platform](https://img.shields.io/badge/platform-WSL2%20%2F%20Windows-lightgrey)
+# Emotion Detection Model (FER2013 / FER+)
 
-# Emotion Detection with Custom CNN
-Real-Time Facial Emotion Recognition – Training Pipeline + Windows Demo
+This repository contains a **clean, modular emotion recognition pipeline** built with TensorFlow.
+It supports **FER2013** and **FER+ (hard labels)** using a **shared image base**, automatic dataset setup,
+and a reproducible training and evaluation pipeline.
 
-Author: Andreas Eichmann  
-Date:   25.01.2026
+This is an **engineering-focused project**, not a research publication.
 
 ---
 
-## 🎥 Live Demo
-
-A live demo video of the real-time emotion detection system is available in the
-`v1.0-demo` release.
-
-Watch the demo here:  
-https://github.com/AndyGitLucky/emotion-detection-cnn/releases/tag/v1.0-demo
-
-
-## Overview
-
-This project implements a full end-to-end facial emotion recognition system using a custom Convolutional Neural Network (CNN).
-
-It consists of:
-- a GPU-accelerated training pipeline running in WSL
-- a real-time inference demo running on Windows using a webcam
-- a synchronized model + configuration hand-off between both environments
-
-The goal of this project is not only model accuracy, but to demonstrate clean ML software architecture:
-- object-oriented design
-- dependency injection
-- separation of training and inference
-- single source of truth for configuration
-- production-adjacent deployment patterns
+> **Note:** This repository is a work in progress and subject to change.
 
 
 ## Features
 
-- Custom CNN for facial emotion classification (7 classes)
-- End-to-end training pipeline:
-  - dataset loading
-  - preprocessing
-  - class weighting
-  - training & validation
-  - evaluation (confusion matrix + classification report)
-
-- Real-time webcam demo on Windows:
-  - Haar cascade face detection
-  - live emotion prediction overlay
-
-- Deliberate WSL / Windows split:
-  - WSL was chosen for training due to reliable NVIDIA GPU support
-  - Windows was required for real-time inference due to webcam access limitations in WSL
-  - Model and configuration are synchronized across environments at runtime
-
-- Clean architecture:
-  - OOP + Dependency Injection
-  - WSL → Windows file-based contract (model + config sync)
-  - no cross-OS Python imports
-
-- GPU-accelerated training using TensorFlow on WSL2
+- Support for **FER2013** and **FER+**
+- **Single shared image base** (no duplicated images)
+- Automatic dataset download and preparation
+- Modular architecture (datasets, model, training, evaluation)
+- GPU support (CUDA / cuDNN)
+- Reproducible training pipeline
+- Clear separation of concerns
 
 
-## Environment & Tech Stack
 
-Training environment (WSL):
+## Project Structure
 
-- Windows 11 with WSL2
-- NVIDIA GPU (RTX-class)
-- CUDA 11.8 runtime (WSL)
-- cuDNN 8.8
-- TensorFlow 2.13.1 (GPU build)
-- Python 3.10 (venv: tf-gpu)
-
-Inference environment (Windows):
-
-- Windows 10/11
-- Python 3.11
-- TensorFlow (CPU build)
-- OpenCV
-- Webcam
-
-
-## Model & Dataset
-
-- Architecture: Custom CNN (grayscale 48×48 input)
-- Classes:
-  - angry
-  - disgusted
-  - fearful
-  - happy
-  - neutral
-  - sad
-  - surprised
-
-- Dataset: FER2013-style facial emotion dataset
-
-### Current baseline performance
-
-- Accuracy: ~55–58 %
-- Macro F1: ~0.54–0.56
-- Weighted F1: ~0.55–0.58
-
-This is a baseline model with clear room for improvement.  
-The focus of this project is primarily engineering quality and architecture.
-
-
-## Repository Structure
 ```text
-emotion_detection_model_V6/
-├── src/                 # Training pipeline (WSL)
-│   ├── main.py
-│   ├── model.py
-│   ├── trainer.py
-│   ├── evaluator.py
-│   ├── runtime.py
-│   ├── training_pipeline.py
-│   └── config.py        # Single source of truth (WSL)
-│
-├── realtime/            # Realtime inference (Windows)
-│   ├── realtime_detector_windows.py
-│   └── run_windows_demo.py
-│
-├── shared/              # Synced config (runtime artifact)
-│   └── __init__.py
-│
-├── assets/              # Haar cascade, etc.
-│   └── haarcascade_frontalface_default.xml
-│
-├── checkpoints/         # Saved models (gitignored)
-└── README.md
+src/
+├── config.py                 # Central configuration
+├── main.py                   # Entry point
+├── runtime.py                # TensorFlow runtime setup
+├── model.py                  # Model architecture
+├── trainer.py                # Training logic
+├── evaluator.py              # Evaluation & metrics
+├── training_pipeline.py      # Pipeline orchestration
+├── data_download.py          # Dataset download & preparation
+└── datasets/
+    ├── base.py               # BaseDataset abstraction
+    ├── factory.py            # Dataset factory
+    ├── fer2013.py            # FER2013 dataset (CSV-based)
+    └── ferplus.py            # FER+ dataset (hard labels)
 ```
----
 
-## How to Run
 
-### A) Training (WSL) 
 
-Requirements:
-- WSL2
-- NVIDIA GPU with CUDA support
-- TensorFlow GPU environment
+## Datasets
 
-Commands:
+### FER2013
+
+- Original FER2013 dataset
+- Images are generated once from `icml_face_data.csv`
+- Dataset splits are taken from the CSV (`Training`, `PublicTest`)
+- Uses the **original FER2013 image set**
+
+### FER+
+
+- Uses the **same FER2013 images**
+- Labels are taken from `fer2013new.csv`
+- Hard labels generated via **majority vote**
+- Optional filtering:
+  - minimum agreement threshold
+  - contempt removal
+  - not-face removal
+- Uses official FER+ splits (`Training`, `PublicTest`, `PrivateTest`)
+
+### Data Handling
+
+- Datasets are **not committed** to the repository
+- All required data is prepared automatically on first run
+- Fail-fast behavior if required files are missing
+- Dataset download and preparation logic lives in `data_download.py`
+
+
+
+## Configuration
+
+All configuration is centralized in **`src/config.py`**, including:
+
+- Dataset selection (`fer2013` or `ferplus`)
+- Image size and batch size
+- Training hyperparameters
+- FER+ filtering options
+- Runtime settings
+
+
+## Running the Project
+
+### Requirements
+
+- Python 3.10
+- TensorFlow 2.13
+- CUDA 11.8 + cuDNN 8.8 (optional, for GPU)
+
+### Run
+
 ```bash
-source ~/tf-gpu/bin/activate  
 python -m src.main
 ```
-This will:
-- configure the TensorFlow runtime
-- load and preprocess the dataset
-- build the CNN
-- train the model
-- evaluate on the validation set
-- save the trained model to `checkpoints/`
-- export the training configuration
 
----
-
-### B) Real-Time Demo (Windows)
-
-Requirements:
-- Windows
-- Python 3.11+
-- OpenCV
-- TensorFlow (CPU is sufficient)
-- Webcam
-
-Command:
-```powershell
-py realtime/run_windows_demo.py
-```
-This will:
-- sync the trained model and config from WSL
-- load the model locally
-- start the webcam
-- detect faces
-- classify emotions in real time
-- overlay predictions on the video stream
-
-Press q to quit.
+On first run:
+- FER2013 data is downloaded and images are generated
+- FER+ labels are downloaded automatically if selected
 
 
-## Architecture & Design Decisions
 
-### 1) Clean separation of concerns
+## Evaluation
 
-- Training logic lives exclusively in src/
-- Inference logic lives exclusively in realtime/
-- No cross-OS Python imports
+The pipeline reports:
 
+- Accuracy
+- Macro F1 score
+- Weighted F1 score
+- Classification report
+- Confusion matrix
 
-### 2) Single source of truth for configuration
-
-- src/config.py is the authoritative config
-- It is synced from WSL to Windows at runtime
-- Windows imports the synced config locally
-
-This guarantees that inference always uses exactly the same parameters as training.
+Due to class imbalance, **weighted F1** is the recommended metric for comparison.
 
 
-### 3) File-based contract between WSL and Windows
 
-Instead of attempting cross-OS imports:
-- the trained model is copied from WSL to Windows
-- the config file is copied from WSL to Windows
+## Design Notes
 
-This mirrors how models are deployed in real systems.
-
-
-### 4) Object-oriented design + Dependency Injection
-
-Both major components are implemented as injectable services:
-- TrainingPipeline
-- EmotionDetector
-
-External dependencies (model loader, preprocessing, sync logic) are injected, making the system:
-- testable
-- extensible
-- replaceable (e.g. FER+ dataset, new model, different camera input)
+- Datasets are implemented as first-class objects
+- Training, evaluation, and runtime configuration are decoupled
+- The pipeline is dataset-agnostic once data is prepared
+- The project prioritizes clarity and reproducibility over maximum performance
 
 
-## Future Work
 
-- Train on FER+ dataset for improved label quality
-- Data augmentation (pose, illumination, occlusion)
-- Deeper CNN or transfer learning (e.g. MobileNetV2)
-- Temporal smoothing for real-time predictions
+## Scope
+
+- This repository is intended for **engineering, experimentation, and demonstration**
+- It is **not a research project**
+- No claims of state-of-the-art performance are made
 
 
-## Author
 
-Andreas Eichmann  
-Applied Data Scientist / ML Engineer (aspiring)
+## License
 
-This project was built as a portfolio-grade demonstration of:
-- applied deep learning
-- ML system design
-- clean Python architecture
-- production-adjacent engineering practices
+The code is released under the repository license.
+Datasets are subject to their respective original licenses.
