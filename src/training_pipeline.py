@@ -1,33 +1,36 @@
 import json
-import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from src.datasets.factory import DatasetFactory
+from src.model import build_model
+from src.trainer import train_model
+from src.evaluator import evaluate_model
+
 
 class TrainingPipeline:
-    def __init__(
-        self,
-        dataset_loader,
-        model_builder,
-        trainer_fn,
-        evaluator_fn,
-        config
-    ):
-        # --- Injected dependencies ---
-        self.dataset_loader = dataset_loader
-        self.model_builder = model_builder
-        self.trainer_fn = trainer_fn
-        self.evaluator_fn = evaluator_fn
+    """
+    Orchestrates the full training lifecycle.
+
+    Responsibilities:
+    - dataset orchestration (not implementation)
+    - model lifecycle
+    - training, evaluation, promotion
+    """
+
+    def __init__(self, config):
         self.config = config
+
+        # --- Dataset (factory-based) ---
+        self.dataset = DatasetFactory.create(
+            config.dataset.name,
+            config
+        )
 
         # --- Runtime state ---
         self.model = None
         self.history = None
         self.metrics = None
-
-        self.train_data = None
-        self.val_data = None
-        self.test_data = None
 
         self.model_file = self.config.MODEL_PATH
         self.best_meta_file = self.config.MODEL_PATH.with_suffix(".meta.json")
@@ -35,47 +38,36 @@ class TrainingPipeline:
     # -------------------------
     # Data
     # -------------------------
-    def load_data(self):
-        print("Loading datasets...")
-        self.train_data, self.val_data, self.test_data = self.dataset_loader()
+    def prepare_data(self):
+        print("Preparing dataset...")
+        self.dataset.load()
+        self.dataset.prepare()
+        self.dataset.split()
 
-    def compute_class_weights(self):
-        print("Computing class weights...")
-        class_counts = np.zeros(self.config.NUM_CLASSES)
-
-        for _, labels in self.train_data:
-            class_counts += np.sum(labels, axis=0)
-
-        total_samples = np.sum(class_counts)
-        class_weights = total_samples / (self.config.NUM_CLASSES * class_counts)
-
-        return dict(enumerate(class_weights))
+        self.X_train, self.y_train = self.dataset.get_train()
+        self.X_val, self.y_val = self.dataset.get_val()
 
     # -------------------------
     # Model
     # -------------------------
     def build_model(self):
         print("Building model...")
-        self.model = self.model_builder(
-            input_shape=(
-                self.config.IMG_HEIGHT,
-                self.config.IMG_WIDTH,
-                1
-            )
-        )
+        self.model = build_model(self.config)
 
     # -------------------------
     # Training
     # -------------------------
     def train(self):
         print("Training model...")
-        class_weights = self.compute_class_weights()
 
-        self.history = self.trainer_fn(
-            self.model,
-            self.train_data,
-            self.val_data,
-            class_weights
+        self.history = train_model(
+            model=self.model,
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_val=self.X_val,
+            y_val=self.y_val,
+            config=self.config,
+            class_weights=self.dataset.get_class_weights()
         )
 
     # -------------------------
@@ -83,13 +75,15 @@ class TrainingPipeline:
     # -------------------------
     def evaluate(self):
         print("Evaluating model...")
-        self.metrics = self.evaluator_fn(
-            self.model,
-            self.test_data
-        )
+        self.metrics = evaluate_model(
+            model=self.model,
+            val_data=self.dataset.get_val()[0],
+            config=self.config
+)
+
 
     # -------------------------
-    # Best-model freeze helpers
+    # Best-model helpers
     # -------------------------
     def load_best_score(self):
         if not self.best_meta_file.exists():
@@ -98,7 +92,7 @@ class TrainingPipeline:
         with open(self.best_meta_file, "r") as f:
             meta = json.load(f)
 
-        return meta.get(self.config.PROMOTION_METRIC, None)
+        return meta.get(self.config.PROMOTION_METRIC)
 
     def save_best_meta(self, metrics: dict):
         with open(self.best_meta_file, "w") as f:
@@ -170,7 +164,7 @@ class TrainingPipeline:
     # Orchestration
     # -------------------------
     def run(self):
-        self.load_data()
+        self.prepare_data()
 
         if self.model_file.exists() and not self.config.FORCE_RETRAIN:
             print("Loading existing frozen best model...")
@@ -183,7 +177,11 @@ class TrainingPipeline:
             self.evaluate()
             self.promote_if_best()
 
-        # Always evaluate frozen best model at the end
         print("\nEvaluating frozen best model...\n")
         self.model = tf.keras.models.load_model(self.model_file)
-        self.evaluator_fn(self.model, self.test_data)
+        evaluate_model(
+            model=self.model,
+            val_data=self.dataset.get_val()[0],
+            config=self.config
+)
+

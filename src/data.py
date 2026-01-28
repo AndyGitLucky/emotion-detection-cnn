@@ -1,142 +1,142 @@
+import csv
 import subprocess
-import zipfile
+import tarfile
 from pathlib import Path
 
-import tensorflow as tf
+import numpy as np
+from PIL import Image
 
-from src.config import (
-    TRAIN_DIR, TEST_DIR, DATASET_ROOT,
-    IMG_HEIGHT, IMG_WIDTH,
-    BATCH_SIZE
+
+# ==================================================
+# Paths
+# ==================================================
+
+ARCHIVE_DIR = Path("archive")
+
+FER2013_COMP_DIR = ARCHIVE_DIR / "fer2013_competition"
+FER2013_CSV = FER2013_COMP_DIR / "icml_face_data.csv"
+FER2013_IMG_DIR = FER2013_COMP_DIR / "images"
+
+FERPLUS_DIR = ARCHIVE_DIR / "ferplus"
+FERPLUS_LABEL_CSV = FERPLUS_DIR / "fer2013new.csv"
+
+
+# ==================================================
+# Kaggle Competition
+# ==================================================
+
+FER2013_COMPETITION = (
+    "challenges-in-representation-learning-facial-expression-recognition-challenge"
 )
 
-# Kaggle dataset slug
-KAGGLE_DATASET = "ananthu017/emotion-detection-fer"
+
+# ==================================================
+# Helpers
+# ==================================================
+
+def _images_exist() -> bool:
+    return FER2013_IMG_DIR.exists() and any(FER2013_IMG_DIR.glob("fer*.png"))
 
 
-def _dataset_exists() -> bool:
-    """
-    Check whether the dataset exists and is non-empty.
-    """
-    return (
-        TRAIN_DIR.exists()
-        and TEST_DIR.exists()
-        and any(TRAIN_DIR.iterdir())
-        and any(TEST_DIR.iterdir())
+def _download_competition() -> None:
+    print("Downloading FER2013 competition data from Kaggle...")
+
+    FER2013_COMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    subprocess.run(
+        [
+            "kaggle",
+            "competitions",
+            "download",
+            "-c",
+            FER2013_COMPETITION,
+            "-p",
+            str(FER2013_COMP_DIR),
+            "--force",
+        ],
+        check=True,
     )
 
+    # 1) unzip competition zip
+    zip_files = list(FER2013_COMP_DIR.glob("*.zip"))
+    if not zip_files:
+        raise RuntimeError("Competition ZIP not found after download")
 
-def _download_from_kaggle() -> None:
+    for zip_path in zip_files:
+        subprocess.run(
+            ["unzip", "-o", zip_path.name],
+            cwd=FER2013_COMP_DIR,
+            check=True,
+        )
+        zip_path.unlink()
+
+    # 2) extract fer2013.tar.gz
+    tar_files = list(FER2013_COMP_DIR.glob("*.tar.gz"))
+    if not tar_files:
+        raise RuntimeError("fer2013.tar.gz not found in competition archive")
+
+    for tar_path in tar_files:
+        with tarfile.open(tar_path) as tar:
+            tar.extractall(FER2013_COMP_DIR)
+        tar_path.unlink()
+
+    if not FER2013_CSV.exists():
+        raise RuntimeError("icml_face_data.csv not found after extraction")
+
+    print("FER2013 competition data ready.")
+
+
+def _build_images_from_csv() -> None:
+    print("Building FER2013 images from icml_face_data.csv (one-time step)...")
+
+    FER2013_IMG_DIR.mkdir(parents=True, exist_ok=True)
+
+    with open(FER2013_CSV, newline="") as f:
+        reader = csv.DictReader(f, skipinitialspace=True)
+
+        for idx, row in enumerate(reader):
+            pixels = row["pixels"]
+
+            pixel_values = np.fromstring(pixels, sep=" ", dtype=np.uint8)
+            if pixel_values.size != 48 * 48:
+                continue
+
+            img = pixel_values.reshape((48, 48))
+            img = Image.fromarray(img, mode="L")
+
+            img_path = FER2013_IMG_DIR / f"fer{idx:07d}.png"
+            img.save(img_path)
+
+    print("FER2013 images built successfully.")
+
+
+# ==================================================
+# Public API
+# ==================================================
+
+def ensure_fer2013_available() -> None:
     """
-    Download and extract the dataset from Kaggle into DATASET_ROOT.
-    Fix directory structure if Kaggle nests it.
+    Ensure original FER2013 images exist, built from icml_face_data.csv.
+
+    This is the ONLY valid base for FER+.
     """
-    print("Dataset not found. Downloading from Kaggle...")
+    if _images_exist():
+        return
 
-    DATASET_ROOT.mkdir(parents=True, exist_ok=True)
-
-    cmd = [
-        "kaggle", "datasets", "download",
-        "-d", KAGGLE_DATASET,
-        "-p", str(DATASET_ROOT),
-        "--force"
-    ]
-
-    subprocess.run(cmd, check=True)
-
-    # Kaggle names the zip after the dataset slug
-    downloaded_zip = next(DATASET_ROOT.glob("*.zip"))
-
-    with zipfile.ZipFile(downloaded_zip, "r") as zip_ref:
-        zip_ref.extractall(DATASET_ROOT)
-
-    downloaded_zip.unlink()
-
-    print("Kaggle dataset downloaded and extracted.")
-
-    # ---- Fix nested Kaggle directory structure ----
-    # Expected final structure:
-    # archive/
-    # ├── train/
-    # └── test/
-
-    nested_root = DATASET_ROOT / "emotion-detection-fer"
-    if nested_root.exists():
-        print("Fixing nested Kaggle directory structure...")
-
-        for subdir in ["train", "test"]:
-            src = nested_root / subdir
-            dst = DATASET_ROOT / subdir
-
-            if src.exists():
-                if dst.exists():
-                    # Merge contents if destination already exists
-                    for item in src.iterdir():
-                        item.rename(dst / item.name)
-                else:
-                    src.rename(dst)
-
-        # Remove empty nested root if possible
-        try:
-            nested_root.rmdir()
-        except OSError:
-            pass
-
-    print("Dataset directory structure is ready.")
+    _download_competition()
+    _build_images_from_csv()
 
 
-def load_datasets():
+def ensure_ferplus_available() -> None:
     """
-    Load train, validation and test datasets.
-    If the dataset is missing, download it automatically from Kaggle.
+    Ensure FER+ prerequisites are met:
+    - original FER2013 images exist
+    - FER+ label CSV exists (downloaded separately)
     """
-    if not _dataset_exists():
-        _download_from_kaggle()
+    ensure_fer2013_available()
 
-    """ 
-    we have less train data and more test data (0.25), so we split the test data files into test and validate 
-    to validate the training with the 'training' split and Test the model at the very end with this  
-    small - never seen before - 'validation' split 
-    """
-
-    train_data = tf.keras.utils.image_dataset_from_directory(
-        directory=str(TRAIN_DIR),
-        labels="inferred",
-        label_mode="categorical",
-        color_mode="grayscale",
-        batch_size=BATCH_SIZE,
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        seed=42
-    )
-
-    val_data = tf.keras.utils.image_dataset_from_directory(
-        directory=str(TEST_DIR),
-        labels="inferred",
-        label_mode="categorical",
-        color_mode="grayscale",
-        batch_size=BATCH_SIZE,
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        validation_split=0.2,
-        subset="training",
-        seed=42
-    )
-
-    test_data = tf.keras.utils.image_dataset_from_directory(
-        directory=str(TEST_DIR),
-        labels="inferred",
-        label_mode="categorical",
-        color_mode="grayscale",
-        batch_size=BATCH_SIZE,
-        image_size=(IMG_HEIGHT, IMG_WIDTH),
-        validation_split=0.2,
-        subset="validation",
-        seed=42
-    )
-
-    AUTOTUNE = tf.data.AUTOTUNE
-
-    train_data = train_data.cache().prefetch(buffer_size=AUTOTUNE)
-    val_data   = val_data.cache().prefetch(buffer_size=AUTOTUNE)
-    test_data  = test_data.cache().prefetch(buffer_size=AUTOTUNE)
-
-    return train_data, val_data, test_data
+    if not FERPLUS_LABEL_CSV.exists():
+        raise RuntimeError(
+            "FER+ labels missing: expected fer2013new.csv at "
+            f"{FERPLUS_LABEL_CSV}"
+        )
