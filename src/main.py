@@ -1,3 +1,6 @@
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"  # 0=alles, 1=INFO, 2=WARNING, 3=ERROR
+
 from src.training_pipeline import TrainingPipeline
 import src.config as config
 

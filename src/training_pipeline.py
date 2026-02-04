@@ -6,6 +6,7 @@ from src.datasets.factory import DatasetFactory
 from src.model import build_model
 from src.trainer import train_model
 from src.evaluator import evaluate_model
+from src.evaluator_soft import evaluate_model_soft
 
 
 class TrainingPipeline:
@@ -42,10 +43,13 @@ class TrainingPipeline:
         print("Preparing dataset...")
         self.dataset.load()
         self.dataset.prepare()
-        self.dataset.split()
 
-        self.X_train, self.y_train = self.dataset.get_train()
-        self.X_val, self.y_val = self.dataset.get_val()
+        self.train_ds = self.dataset.get_train()
+        self.val_ds = self.dataset.get_val()
+        self.dataset.debug_show_samples("train", n=5)
+        self.dataset.debug_show_samples("val", n=5)
+        self.dataset.debug_show_samples("test", n=5)
+
 
     # -------------------------
     # Model
@@ -53,6 +57,7 @@ class TrainingPipeline:
     def build_model(self):
         print("Building model...")
         self.model = build_model(self.config)
+        #print(self.model.summary())
 
     # -------------------------
     # Training
@@ -62,24 +67,23 @@ class TrainingPipeline:
 
         self.history = train_model(
             model=self.model,
-            X_train=self.X_train,
-            y_train=self.y_train,
-            X_val=self.X_val,
-            y_val=self.y_val,
+            train_data=self.train_ds,
+            val_data=self.val_ds,
             config=self.config,
             class_weights=self.dataset.get_class_weights()
         )
+
 
     # -------------------------
     # Evaluation
     # -------------------------
     def evaluate(self):
         print("Evaluating model...")
-        self.metrics = evaluate_model(
+        self.metrics = evaluate_model_soft(
             model=self.model,
-            val_data=self.dataset.get_val()[0],
+            val_data=self.dataset.get_val(),
             config=self.config
-)
+        )
 
 
     # -------------------------
@@ -110,7 +114,7 @@ class TrainingPipeline:
         best_score = self.load_best_score()
         new_score = self.metrics[self.config.PROMOTION_METRIC]
 
-        if best_score is None or new_score > best_score:
+        if best_score is None or new_score < best_score:
             print(
                 f"New best model! {self.config.PROMOTION_METRIC}: {new_score:.4f} "
                 f"(old: {best_score})"
@@ -129,36 +133,38 @@ class TrainingPipeline:
     # Plotting
     # -------------------------
     def save_training_curves(self):
-        if self.history is None:
-            return
+        import matplotlib.pyplot as plt
 
-        print("Saving training curves...")
+        history = self.history.history
 
-        train_loss = self.history.history["loss"]
-        val_loss = self.history.history["val_loss"]
-        train_acc = self.history.history["accuracy"]
-        val_acc = self.history.history["val_accuracy"]
+        plt.figure(figsize=(10, 4))
 
-        epochs = range(1, len(train_loss) + 1)
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(epochs, train_loss, label="Train Loss", linestyle="--")
-        plt.plot(epochs, val_loss, label="Val Loss", linestyle="--")
-        plt.plot(epochs, train_acc, label="Train Accuracy")
-        plt.plot(epochs, val_acc, label="Val Accuracy")
-
-        plt.xlabel("Epoch")
-        plt.ylabel("Value")
-        plt.title("Training Curves: Loss and Accuracy")
+        # -----------------
+        # Loss
+        # -----------------
+        plt.subplot(1, 2, 1)
+        plt.plot(history["loss"], label="train_loss")
+        if "val_loss" in history:
+            plt.plot(history["val_loss"], label="val_loss")
+        plt.title("Loss")
         plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
 
-        output_path = "training_curves.png"
-        plt.savefig(output_path, dpi=150)
+        # -----------------
+        # Accuracy (optional)
+        # -----------------
+        if "accuracy" in history:
+            plt.subplot(1, 2, 2)
+            plt.plot(history["accuracy"], label="train_acc")
+            if "val_accuracy" in history:
+                plt.plot(history["val_accuracy"], label="val_acc")
+            plt.title("Accuracy")
+            plt.legend()
+
+        plt.tight_layout()
+        plt.savefig("training_curves.png")
         plt.close()
 
-        print(f"✔ Training curves saved to: {output_path}")
+        print("✔ Training curves saved to: training_curves.png")
 
     # -------------------------
     # Orchestration
@@ -181,7 +187,7 @@ class TrainingPipeline:
         self.model = tf.keras.models.load_model(self.model_file)
         evaluate_model(
             model=self.model,
-            val_data=self.dataset.get_val()[0],
+            val_data=self.val_ds,
             config=self.config
 )
 

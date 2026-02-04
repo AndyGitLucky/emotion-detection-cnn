@@ -1,19 +1,21 @@
 import time
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.optimizers import Adam
+import numpy as np
+from sklearn.utils.class_weight import compute_class_weight
+from keras.callbacks import EarlyStopping
+from keras.optimizers import Adam
+from keras.losses import KLDivergence, CategoricalCrossentropy
 
 
 def train_model(
+    *,
     model,
-    X_train,
-    y_train,
-    X_val,
-    y_val,
+    train_data,
+    val_data,
     config,
     class_weights=None,
 ):
     """
-    Compile and train the model.
+    Compile and train the model using tf.data datasets.
 
     Responsibilities:
     - optimizer + learning rate
@@ -25,22 +27,43 @@ def train_model(
     # -------------------------
     # Compile (training concern)
     # -------------------------
+    if config.DATASET == "ferplus":
+        loss = CategoricalCrossentropy()
+        metrics = []                  # accuracy optional
+        monitor = "val_loss"
+        mode = "min"
+        class_weights = None
+    else:
+        loss = CategoricalCrossentropy()
+        metrics = ["accuracy"]
+        monitor = "val_accuracy"
+        mode = "max"
+
+
     model.compile(
         optimizer=Adam(learning_rate=config.training.learning_rate),
-        loss="categorical_crossentropy",
-        metrics=["accuracy"],
+        loss=loss,
+        metrics=metrics,
+        weighted_metrics=[],         # silence sample_weight warnings
     )
 
     # -------------------------
     # Callbacks
     # -------------------------
-    early_stopping = EarlyStopping(
-        monitor="val_accuracy",
-        mode="max",
-        patience=config.training.early_stop_patience,
-        restore_best_weights=True,
-        verbose=1,
-    )
+    callbacks = []
+    '''
+    if val_data is not None and config.training.early_stop_patience is not None:
+        callbacks.append(
+            EarlyStopping(
+                monitor=monitor,
+                mode=mode,
+                patience=config.training.early_stop_patience,
+                restore_best_weights=True,
+                verbose=1,
+            )
+        )'''
+    x, y, w = next(iter(train_data))
+    # print("y argmax:", np.unique(np.argmax(y.numpy(), axis=1), return_counts=True))
 
     # -------------------------
     # Training
@@ -48,13 +71,13 @@ def train_model(
     start_time = time.time()
 
     history = model.fit(
-        X_train,
-        validation_data=(X_val, y_val),
+        train_data,
+        validation_data=val_data,
         epochs=config.training.epochs,
-        callbacks=[early_stopping],
+        callbacks=callbacks,
         class_weight=class_weights,
     )
-
+    
     elapsed = time.time() - start_time
     print(f"Training time: {elapsed:.2f} seconds")
 

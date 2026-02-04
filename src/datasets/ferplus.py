@@ -1,112 +1,95 @@
-import csv
 from pathlib import Path
-import tensorflow as tf
+import csv
+import numpy as np
 
-from src.datasets.base import BaseDataset
+from .base import BaseDataset
 from src.data_download import ensure_ferplus_available
+
+FERPLUS_COLUMN_MAP = {
+    "angry": "anger",
+    "disgusted": "disgust",
+    "fearful": "fear",
+    "happy": "happiness",
+    "neutral": "neutral",
+    "sad": "sadness",
+    "surprised": "surprise",
+}
 
 
 class FERPlusDataset(BaseDataset):
     """
-    FER+ Dataset (hard labels, majority vote).
-    Uses the same FER2013 image base.
+    FER+ dataset with soft labels and agreement-based sample weights.
     """
 
     def __init__(self, config):
         super().__init__(config)
 
-        # internal state (IDENTICAL to FER2013)
-        self._train_items = []
-        self._val_items = []
-        self._test_items = []
+        root = Path(config.DATASET_ROOT)
 
-        self._train_ds = None
-        self._val_ds = None
+        self.image_dir = root / "fer2013_competition" / "images"
+        self.csv_path  = root / "ferplus" / "fer2013new.csv"
 
-    # -------------------------------------------------
-    # Load: CSV parsing + filtering
-    # -------------------------------------------------
+        # Expected order of FER+ label columns
+        self.class_labels = config.CLASS_LABELS
+
     def load(self):
         ensure_ferplus_available(self.config)
 
-        root = self.config.dataset.root
-        csv_path = Path(self.config.dataset.ferplus.label_csv)
-        image_dir = root / "fer2013_competition" / "images"
-
-        class_labels = self.config.CLASS_LABELS
-        min_agreement = self.config.dataset.ferplus.min_agreement
-        drop_contempt = self.config.dataset.ferplus.drop_contempt
-
-        stats = {
-            "rows_total": 0,
-            "image_missing": 0,
-            "contempt": 0,
-            "nf": 0,
-            "zero_votes": 0,
-            "low_agreement": 0,
-            "kept": 0,
-        }
-
-        with open(csv_path, newline="") as f:
+        with open(self.csv_path, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
-            field_map = {k.strip().lower(): k for k in reader.fieldnames}
+            if reader.fieldnames is None:
+                raise RuntimeError("CSV has no header")
+            
+            reader.fieldnames = [h.strip() for h in reader.fieldnames]
 
-            usage_key = field_map.get("usage")
+            for row in reader:
+                usage = row["Usage"].strip().lower()
 
-            vote_keys = {
-                "neutral": field_map.get("neutral"),
-                "happy": field_map.get("happy"),
-                "surprised": field_map.get("surprise"),
-                "sad": field_map.get("sad"),
-                "angry": field_map.get("anger"),
-                "disgusted": field_map.get("disgust"),
-                "fearful": field_map.get("fear"),
-            }
+                img = self.image_dir / row["Image name"].strip()
+                if not img.exists():
+                    continue
 
-            contempt_key = field_map.get("contempt")
-            nf_key = field_map.get("unknown")
-
-            if usage_key is None:
-                raise RuntimeError(
-                    f"Unexpected FER+ CSV header: {reader.fieldnames}"
+                # ---- soft label vector in MODEL order----
+                votes = np.array(
+                    [float(row[FERPLUS_COLUMN_MAP[c]]) for c in self.class_labels],
+                    dtype=np.float32,
                 )
 
-            for idx, row in enumerate(reader):
-                stats["rows_total"] += 1
-
-                usage = row[usage_key].strip().lower()
-                img_path = image_dir / f"fer{idx:07d}.png"
-
-                if not img_path.exists():
-                    stats["image_missing"] += 1
+                total = votes.sum()
+                if total <= 0:
                     continue
 
-                if drop_contempt and contempt_key and int(row[contempt_key]) > 0:
-                    stats["contempt"] += 1
-                    continue
+                soft = votes / total
 
-                if nf_key and int(row[nf_key]) > 0:
-                    stats["nf"] += 1
-                    continue
+                # ---- sample_weight ----
+                neutral_idx = self.class_labels.index("neutral")
 
-                votes = {
-                    name: int(row[key])
-                    for name, key in vote_keys.items()
-                    if key is not None
+                agreement = soft.max()
+
+                # 1. Neutral-Dämpfung
+                neutral_penalty = 1.0 - 0.7 * soft[neutral_idx]
+
+                # 2. Dominanz-Dämpfung (Label-Seite)
+                label_dominance_penalty = 1.0 - 0.5 * soft.max()
+
+                # 3. Entropie-Förderung (Label-Seite)
+                entropy = -np.sum(soft * np.log(soft + 1e-8))
+                max_entropy = np.log(len(soft))
+                entropy_bonus = entropy / max_entropy   # ∈ [0,1]
+
+                sample_weight = agreement \
+                            * neutral_penalty \
+                            * label_dominance_penalty \
+                            * (0.5 + 0.5 * entropy_bonus)
+
+
+                item = {
+                    "path": str(img),
+                    "label": soft,
+                    "weight": float(sample_weight),
                 }
 
-                total = sum(votes.values())
-                if total == 0:
-                    stats["zero_votes"] += 1
-                    continue
 
-                best = max(votes, key=votes.get)
-                if votes[best] / total < min_agreement:
-                    stats["low_agreement"] += 1
-                    continue
-
-                label_idx = class_labels.index(best)
-                item = (str(img_path), label_idx)
 
                 if usage == "training":
                     self._train_items.append(item)
@@ -114,56 +97,60 @@ class FERPlusDataset(BaseDataset):
                     self._val_items.append(item)
                 elif usage == "privatetest":
                     self._test_items.append(item)
+        
 
-                stats["kept"] += 1
+        item = np.random.choice(self._train_items)
+        
+        print(
+            f"label={item['label']} | "
+            f"sum={item['label'].sum():.4f} | "
+            f"weight={item['weight']:.4f}"
+        )
 
-        print("\nFER+ DEBUG STATS")
-        for k, v in stats.items():
-            print(f"{k:>15}: {v}")
+    def get_class_weights(self):
+        # FER+ uses sample_weight, NOT class_weight
+        return None
+    
+    def debug_show_samples(self, split="train", n=5):
+        import matplotlib.pyplot as plt
 
-        if not self._train_items:
-            raise RuntimeError("FER+ dataset: zero training samples")
+        if split == "train":
+            ds = self.get_train()
+        elif split == "val":
+            ds = self.get_val()
+        elif split == "test":
+            ds = self.get_test()
+        else:
+            raise ValueError(split)
 
-    # -------------------------------------------------
-    def prepare(self):
-        image_size = self.config.dataset.image_size
-        batch_size = self.config.dataset.batch_size
-        seed = self.config.dataset.seed
-        num_classes = self.config.dataset.num_classes
+        print(f"\n=== DEBUG {split.upper()} SAMPLES ===")
 
-        def build_dataset(items, shuffle=False):
-            paths, labels = zip(*items)
+        shown = 0
+        for batch in ds:
+            images = batch[0]
+            labels = batch[1]
 
-            labels = tf.keras.utils.to_categorical(
-                labels, num_classes=num_classes
-            )
+            for i in range(images.shape[0]):
+                img = images[i].numpy().squeeze()
+                label = labels[i].numpy()
 
-            ds = tf.data.Dataset.from_tensor_slices((list(paths), labels))
+                if label.ndim == 1:
+                    cls = int(np.argmax(label))
+                    dist = label
+                else:
+                    cls = int(label)
+                    dist = None
 
-            def _load_image(path, label):
-                img = tf.io.read_file(path)
-                img = tf.image.decode_png(img, channels=1)
-                img = tf.image.resize(img, image_size)
-                img = tf.cast(img, tf.float32) / 255.0
-                return img, label
+                print(f"Label argmax: {cls} ({self.class_labels[cls]})")
+                if dist is not None:
+                    print("Distribution:", np.round(dist, 3))
 
-            ds = ds.map(_load_image, num_parallel_calls=tf.data.AUTOTUNE)
+                plt.imshow(img, cmap="gray")
+                plt.title(self.class_labels[cls])
+                plt.axis("off")
+                plt.show()
 
-            if shuffle:
-                ds = ds.shuffle(1000, seed=seed)
+                shown += 1
+                if shown >= n:
+                    return
 
-            return ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
-        self._train_ds = build_dataset(self._train_items, shuffle=True)
-        self._val_ds = build_dataset(self._val_items)
-
-    # -------------------------------------------------
-    def split(self):
-        pass
-
-    # -------------------------------------------------
-    def get_train(self):
-        return self._train_ds, None
-
-    def get_val(self):
-        return self._val_ds, None

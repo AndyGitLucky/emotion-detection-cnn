@@ -30,10 +30,10 @@ FERPLUS_IMAGE_DIR = DATASET_ROOT / "ferplus" / "images"
 CASCADE_PATH = PROJECT_ROOT / "assets" / "haarcascade_frontalface_default.xml"
 MODEL_PATH = PROJECT_ROOT / "checkpoints" / "emotion_model"
 
-FORCE_RETRAIN = False
+FORCE_RETRAIN = True
 
 FREEZE_BEST_MODEL = True
-PROMOTION_METRIC = "weighted_f1"   # or: "accuracy"
+PROMOTION_METRIC = "mean_kl"  # or: "accuracy", "weighted_f1"
 
 # -------------------------------------------------
 # Training hyperparameters (legacy flat access)
@@ -43,9 +43,9 @@ IMG_HEIGHT = 48
 IMG_WIDTH = 48
 BATCH_SIZE = 256
 NUM_CLASSES = 7
-LEARNING_RATE = 0.0005
+LEARNING_RATE = 0.001
 EARLY_STOP_PATIENCE = 20
-EPOCHS = 50
+EPOCHS = 20
 
 # -------------------------------------------------
 # Dataset selection (legacy)
@@ -60,7 +60,7 @@ DATASET = "ferplus"
 # FER+ specific
 # -------------------------------------------------
 
-FERPLUS_MIN_AGREEMENT = 0.6
+FERPLUS_MIN_AGREEMENT = None
 FERPLUS_DROP_CONTEMPT = True
 
 # -------------------------------------------------

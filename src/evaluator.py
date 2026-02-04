@@ -17,10 +17,25 @@ def evaluate_model(model, val_data, config):
     y_true = []
     y_pred = []
 
-    for images, labels in val_data:
+    for batch in val_data:
+        images = batch[0]
+        labels = batch[1]
+
         preds = model.predict(images, verbose=0)
-        y_true.extend(np.argmax(labels.numpy(), axis=1))
-        y_pred.extend(np.argmax(preds, axis=1))
+
+        y_true.append(labels.numpy())
+        y_pred.append(preds)
+
+    # ---- normalize for sklearn ----
+    y_true = np.concatenate(y_true)
+    y_pred = np.concatenate(y_pred)
+
+    if y_true.ndim == 2:          # FER+ soft labels
+        y_true = np.argmax(y_true, axis=1)
+
+    if y_pred.ndim == 2:          # prediction probabilities
+        y_pred = np.argmax(y_pred, axis=1)
+
 
     # -------------------------
     # Metrics
