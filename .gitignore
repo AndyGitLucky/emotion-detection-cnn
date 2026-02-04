@@ -4,11 +4,11 @@ archive/
 # trained models / checkpoints
 checkpoints/
 
-
+*.ipynb
 debug_*.png
 training_curves.png
 shared/config.py
-checkpoints/
+
 scripts/
 # -----------------------
 # Python
@@ -25,8 +25,8 @@ __pycache__/
 # -----------------------
 # Project artefacts
 # -----------------------
-emotion_detection_model_V6.zip
-demo_thumbnail.png
+*.zip
+*.png
 live-demo.mp4
 
 # -----------------------
@@ -35,3 +35,4 @@ live-demo.mp4
 briefing.md
 notes.txt
 rc.main
+notebooks/
