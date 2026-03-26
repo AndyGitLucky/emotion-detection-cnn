@@ -234,7 +234,7 @@ External dependencies (model loader, preprocessing, sync logic) are injected, ma
 ## Author
 
 Andreas Eichmann  
-Applied Data Scientist / ML Engineer (aspiring)
+Applied Data Scientist / ML Engineer
 
 This project was built as a portfolio-grade demonstration of:
 - applied deep learning
